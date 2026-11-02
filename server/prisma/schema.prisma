@@ -1,0 +1,209 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum WalletType {
+  CASH
+  BANK
+  E_WALLET
+  INVESTMENT
+  CREDIT_CARD
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+  TRANSFER
+}
+
+enum DebtType {
+  PAYABLE
+  RECEIVABLE
+}
+
+enum DebtStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+}
+
+enum AssetCategory {
+  GOLD
+  MUTUAL_FUND
+  STOCK
+  CRYPTO
+  PROPERTY
+  OTHER
+}
+
+model User {
+  id           String         @id @default(uuid())
+  email        String         @unique
+  passwordHash String         @map("password_hash")
+  fullName     String         @map("full_name")
+  currency     String         @default("IDR")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  wallets      Wallet[]
+  categories   Category[]
+  transactions Transaction[]
+  transfers    Transfer[]
+  budgets      Budget[]
+  goals        Goal[]
+  debts        Debt[]
+  assets       Asset[]
+
+  @@map("users")
+}
+
+model Wallet {
+  id             String         @id @default(uuid())
+  userId         String         @map("user_id")
+  name           String
+  type           WalletType     @default(CASH)
+  balance        Decimal        @default(0.00) @db.Decimal(15, 2)
+  accountNumber  String?        @map("account_number")
+  colorHex       String?        @default("#3B82F6") @map("color_hex")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions   Transaction[]
+  transfersSent  Transfer[]     @relation("SourceWallet")
+  transfersRcvd  Transfer[]     @relation("TargetWallet")
+
+  @@index([userId])
+  @@map("wallets")
+}
+
+model Category {
+  id           String          @id @default(uuid())
+  userId       String?         @map("user_id")
+  name         String
+  icon         String?
+  type         TransactionType
+  createdAt    DateTime        @default(now()) @map("created_at")
+
+  user         User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+  budgets      Budget[]
+
+  @@index([userId, type])
+  @@map("categories")
+}
+
+model Transaction {
+  id          String          @id @default(uuid())
+  userId      String          @map("user_id")
+  walletId    String          @map("wallet_id")
+  categoryId  String?         @map("category_id")
+  transferId  String?         @unique @map("transfer_id")
+  type        TransactionType
+  amount      Decimal         @db.Decimal(15, 2)
+  date        DateTime        @default(now())
+  description String?
+  isRecurring Boolean         @default(false) @map("is_recurring")
+  receiptUrl  String?         @map("receipt_url")
+  createdAt   DateTime        @default(now()) @map("created_at")
+
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  wallet      Wallet          @relation(fields: [walletId], references: [id], onDelete: Restrict)
+  category    Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  transfer    Transfer?       @relation(fields: [transferId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+  @@index([walletId])
+  @@map("transactions")
+}
+
+model Transfer {
+  id             String       @id @default(uuid())
+  userId         String       @map("user_id")
+  sourceWalletId String       @map("source_wallet_id")
+  targetWalletId String       @map("target_wallet_id")
+  amount         Decimal      @db.Decimal(15, 2)
+  adminFee       Decimal      @default(0.00) @map("admin_fee") @db.Decimal(15, 2)
+  notes          String?
+  date           DateTime     @default(now())
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceWallet   Wallet       @relation("SourceWallet", fields: [sourceWalletId], references: [id], onDelete: Restrict)
+  targetWallet   Wallet       @relation("TargetWallet", fields: [targetWalletId], references: [id], onDelete: Restrict)
+  transaction    Transaction?
+
+  @@index([userId])
+  @@map("transfers")
+}
+
+model Budget {
+  id         String    @id @default(uuid())
+  userId     String    @map("user_id")
+  categoryId String    @map("category_id")
+  limit      Decimal   @db.Decimal(15, 2)
+  month      Int
+  year       Int
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category   Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, categoryId, month, year])
+  @@map("budgets")
+}
+
+model Goal {
+  id            String    @id @default(uuid())
+  userId        String    @map("user_id")
+  name          String
+  targetAmount  Decimal   @map("target_amount") @db.Decimal(15, 2)
+  currentAmount Decimal   @default(0.00) @map("current_amount") @db.Decimal(15, 2)
+  deadline      DateTime?
+  colorHex      String?   @default("#10B981") @map("color_hex")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("goals")
+}
+
+model Debt {
+  id           String     @id @default(uuid())
+  userId       String     @map("user_id")
+  type         DebtType
+  personName   String     @map("person_name")
+  totalAmount  Decimal    @map("total_amount") @db.Decimal(15, 2)
+  paidAmount   Decimal    @default(0.00) @map("paid_amount") @db.Decimal(15, 2)
+  dueDate      DateTime?  @map("due_date")
+  status       DebtStatus @default(UNPAID)
+  notes        String?
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@map("debts")
+}
+
+model Asset {
+  id            String        @id @default(uuid())
+  userId        String        @map("user_id")
+  name          String
+  category      AssetCategory
+  quantity      Decimal       @default(1.00000000) @db.Decimal(18, 8)
+  buyPrice      Decimal       @map("buy_price") @db.Decimal(15, 2)
+  currentValue  Decimal       @map("current_value") @db.Decimal(15, 2)
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("assets")
+}

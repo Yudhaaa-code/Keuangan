@@ -1,0 +1,19 @@
+{
+  "name": "Keuangan.app - Manajemen Finansial & Multi-Wallet",
+  "short_name": "Keuangan.app",
+  "description": "Aplikasi pencatatan keuangan harian, multi-dompet, anggaran, utang/piutang, dan pelacak kekayaan bersih.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#4f46e5",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
+
